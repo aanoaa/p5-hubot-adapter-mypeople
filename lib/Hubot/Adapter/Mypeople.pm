@@ -7,7 +7,6 @@ extends 'Hubot::Adapter';
 use AnyEvent::HTTPD;
 use AnyEvent::HTTP::ScopedClient;
 use JSON::XS;
-use Data::Dump;
 
 use Hubot::Message;
 
@@ -21,10 +20,17 @@ has apikey => (
     isa => 'Str',
 );
 
-has _shutdown => (
-    is      => 'rw',
-    isa     => 'Bool',
-    default => 0,
+has groups => (
+    traits  => ['Array'],
+    is      => 'ro',
+    isa     => 'ArrayRef[Str]',
+    default => sub { [] },
+    handles => {
+        all_groups   => 'elements',
+        add_group    => 'push',
+        find_group   => 'first',
+        count_groups => 'count',
+    }
 );
 
 sub _build_httpd { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
@@ -40,8 +46,8 @@ sub send {
         content      => join("\n", @strings)
     }, sub {
         my ($body, $hdr) = @_;
+
         print $body if $ENV{DEBUG};
-        $self->httpd->stop if $self->_shutdown;
     });
 }
 
@@ -73,32 +79,55 @@ sub run {
             my $groupId = $req->parm('groupId');
             my $content = $req->parm('content');
 
-            $req->respond(
-                {
-                    content => [
-                        'text/plain',
-                        "hello, world"
-                    ]
-                }
-            );
+            $req->respond({ content => [ 'text/plain', "hello, world" ]});
 
-            return unless $action =~ /^sendFrom/; # sendFromMessage|sendFromGroup
+            $self->add_group($groupId) if $groupId && !$self->find_group(sub {/^$groupId$/});
 
-            ## '-'] hmm.. createUser takes callback; bad naming
-            $self->createUser(
-                $buddyId,
-                $groupId,
-                sub {
-                    my $user = shift;
+            if ($action =~ /^sendFrom/) {
+                ## '-'] hmm.. createUser takes callback; bad naming
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
 
-                    $self->receive(
-                        Hubot::TextMessage->new(
-                            user => $user,
-                            text => $content,
-                        )
-                    );
-                }
-            );
+                        $self->receive(
+                            Hubot::TextMessage->new(
+                                user => $user,
+                                text => $content,
+                            )
+                        );
+                    }
+                );
+            } elsif ($action =~ /^(createGroup|inviteToGroup)$/) {
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
+
+                        $self->receive(
+                            Hubot::EnterMessage->new(
+                                user => $user
+                            )
+                        );
+                    }
+                );
+            } elsif ($action eq 'exitFromGroup') {
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
+
+                        $self->receive(
+                            Hubot::LeaveMessage->new(
+                                user => $user
+                            )
+                        );
+                    }
+                );
+            }
         }
     );
 
@@ -136,7 +165,25 @@ sub createUser {
         );
 }
 
-sub close { shift->_shutdown(1) }
+sub close {
+    my $self = shift;
+
+    my $count  = $self->count_groups;
+    my $client = $self->robot->http("https://apis.daum.net/mypeople/group/exit.json?apikey=" . $self->apikey);
+    $client->header('Accept', 'application/json');
+    for my $groupId ($self->all_groups) {
+        $count--;
+        $client->post(
+            { groupId => $groupId },
+            sub {
+                my ($body, $hdr) = @_;
+
+                print $body if $ENV{DEBUG};
+                $self->httpd->stop unless $count;
+            }
+        );
+    }
+}
 
 __PACKAGE__->meta->make_immutable;
 
