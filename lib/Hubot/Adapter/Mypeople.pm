@@ -72,32 +72,55 @@ sub run {
             my $groupId = $req->parm('groupId');
             my $content = $req->parm('content');
 
-            $req->respond(
-                {
-                    content => [
-                        'text/plain',
-                        "hello, world"
-                    ]
-                }
-            );
+            $req->respond({ content => [ 'text/plain', "hello, world" ]});
 
-            return unless $action =~ /^sendFrom/; # sendFromMessage|sendFromGroup
+            $self->add_group($groupId) if $groupId && !$self->find_group(sub {/^$groupId$/});
 
-            ## '-'] hmm.. createUser takes callback; bad naming
-            $self->createUser(
-                $buddyId,
-                $groupId,
-                sub {
-                    my $user = shift;
+            if ($action =~ /^sendFrom/) {
+                ## '-'] hmm.. createUser takes callback; bad naming
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
 
-                    $self->receive(
-                        Hubot::TextMessage->new(
-                            user => $user,
-                            text => $content,
-                        )
-                    );
-                }
-            );
+                        $self->receive(
+                            Hubot::TextMessage->new(
+                                user => $user,
+                                text => $content,
+                            )
+                        );
+                    }
+                );
+            } elsif ($action =~ /^(createGroup|inviteToGroup)$/) {
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
+
+                        $self->receive(
+                            Hubot::EnterMessage->new(
+                                user => $user
+                            )
+                        );
+                    }
+                );
+            } elsif ($action eq 'exitFromGroup') {
+                $self->createUser(
+                    $buddyId,
+                    $groupId,
+                    sub {
+                        my $user = shift;
+
+                        $self->receive(
+                            Hubot::LeaveMessage->new(
+                                user => $user
+                            )
+                        );
+                    }
+                );
+            }
         }
     );
 
