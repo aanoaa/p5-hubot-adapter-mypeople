@@ -20,10 +20,17 @@ has apikey => (
     isa => 'Str',
 );
 
-has _shutdown => (
-    is      => 'rw',
-    isa     => 'Bool',
-    default => 0,
+has groups => (
+    traits  => ['Array'],
+    is      => 'ro',
+    isa     => 'ArrayRef[Str]',
+    default => sub { [] },
+    handles => {
+        all_groups   => 'elements',
+        add_group    => 'push',
+        find_group   => 'first',
+        count_groups => 'count',
+    }
 );
 
 sub _build_httpd { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
@@ -39,8 +46,8 @@ sub send {
         content      => join("\n", @strings)
     }, sub {
         my ($body, $hdr) = @_;
+
         print $body if $ENV{DEBUG};
-        $self->httpd->stop if $self->_shutdown;
     });
 }
 
@@ -158,7 +165,25 @@ sub createUser {
         );
 }
 
-sub close { shift->_shutdown(1) }
+sub close {
+    my $self = shift;
+
+    my $count  = $self->count_groups;
+    my $client = $self->robot->http("https://apis.daum.net/mypeople/group/exit.json?apikey=" . $self->apikey);
+    $client->header('Accept', 'application/json');
+    for my $groupId ($self->all_groups) {
+        $count--;
+        $client->post(
+            { groupId => $groupId },
+            sub {
+                my ($body, $hdr) = @_;
+
+                print $body if $ENV{DEBUG};
+                $self->httpd->stop unless $count;
+            }
+        );
+    }
+}
 
 __PACKAGE__->meta->make_immutable;
 
