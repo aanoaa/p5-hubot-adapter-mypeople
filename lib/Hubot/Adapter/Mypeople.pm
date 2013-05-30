@@ -7,7 +7,6 @@ extends 'Hubot::Adapter';
 use AnyEvent::HTTPD;
 use AnyEvent::HTTP::ScopedClient;
 use JSON::XS;
-use Data::Dump;
 
 use Hubot::Message;
 
