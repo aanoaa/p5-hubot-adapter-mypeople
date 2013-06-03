@@ -5,7 +5,7 @@ use namespace::autoclean;
 extends 'Hubot::Adapter';
 
 use AnyEvent::HTTPD;
-use AnyEvent::HTTP::ScopedClient;
+use AnyEvent::Mypeople::Client;
 use JSON::XS;
 
 use Hubot::Message;
@@ -15,9 +15,10 @@ has httpd => (
     lazy_build => 1,
 );
 
-has apikey => (
-    is  => 'rw',
-    isa => 'Str',
+has client => (
+    is         => 'rw',
+    isa        => 'AnyEvent::Mypeople::Client',
+    lazy_build => 1,
 );
 
 has groups => (
@@ -33,22 +34,16 @@ has groups => (
     }
 );
 
-sub _build_httpd { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
+sub _build_httpd  { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
 
 sub send {
     my ( $self, $user, @strings ) = @_;
 
-    my $from = $user->{from};
-    my $client = $self->robot->http("https://apis.daum.net/mypeople/$from/send.json?apikey=" . $self->apikey);
-    $client->header('Accept', 'application/json');
-    $client->post({
-        $from . 'Id' => $user->{room},
-        content      => join("\n", @strings)
-    }, sub {
-        my ($body, $hdr) = @_;
-
-        print $body if $ENV{DEBUG};
-    });
+    $self->client->send(
+        $user->{room},
+        join("\n", @strings),
+        undef
+    );
 }
 
 sub reply {
@@ -66,7 +61,7 @@ sub run {
         exit;
     }
 
-    $self->apikey($ENV{HUBOT_MYPEOPLE_APIKEY});
+    $self->client(AnyEvent::Mypeople::Client->new(apikey => $ENV{HUBOT_MYPEOPLE_APIKEY}));
 
     my $httpd = $self->httpd;
 
@@ -79,13 +74,12 @@ sub run {
             my $groupId = $req->parm('groupId');
             my $content = $req->parm('content');
 
-            $req->respond({ content => [ 'text/plain', "hello, world" ]});
+            $req->respond({ content => ['text/plain', 'Your request is succeed'] });
 
             $self->add_group($groupId) if $groupId && !$self->find_group(sub {/^$groupId$/});
 
             if ($action =~ /^sendFrom/) {
-                ## '-'] hmm.. createUser takes callback; bad naming
-                $self->createUser(
+                $self->respond(
                     $buddyId,
                     $groupId,
                     sub {
@@ -100,7 +94,7 @@ sub run {
                     }
                 );
             } elsif ($action =~ /^(createGroup|inviteToGroup)$/) {
-                $self->createUser(
+                $self->respond(
                     $buddyId,
                     $groupId,
                     sub {
@@ -114,7 +108,7 @@ sub run {
                     }
                 );
             } elsif ($action eq 'exitFromGroup') {
-                $self->createUser(
+                $self->respond(
                     $buddyId,
                     $groupId,
                     sub {
@@ -138,48 +132,34 @@ sub run {
     $httpd->run;
 }
 
-sub createUser {
+sub respond {
     my ( $self, $buddyId, $groupId, $cb ) = @_;
 
-    my $user = $self->userForId($buddyId, {
-        room => $groupId || $buddyId,
-        from => $groupId ? 'group' : 'buddy',
-    });
-
+    my $user = $self->userForId($buddyId, {room => $groupId || $buddyId });
     return $cb->($user) if $user->{id} ne $user->{name};
 
-    my $client = $self->robot->http("https://apis.daum.net/mypeople/profile/buddy.json?apikey=" . $self->apikey);
-
-    $client->header('Accept', 'application/json')
-        ->post({ buddyId => $buddyId },
-            sub {
-                my ($body, $hdr) = @_;
-
-                return if ( !$body || $hdr->{Status} !~ /^2/ ); # debug log?
-
-                my $json = decode_json($body);
-                $user->{name} = $json->{buddys}[0]{name};
-
-                $cb->($user, $json);
-            }
-        );
+    $self->client->profile(
+        $buddyId,
+        sub {
+            my $data = decode_json(shift);
+            $user->{name} = $data->{buddys}[0]{name};
+            $cb->($user);
+        }
+    );
 }
 
 sub close {
     my $self = shift;
 
-    my $count  = $self->count_groups;
-    my $client = $self->robot->http("https://apis.daum.net/mypeople/group/exit.json?apikey=" . $self->apikey);
-    $client->header('Accept', 'application/json');
+    my $exit = 0;
     for my $groupId ($self->all_groups) {
-        $count--;
-        $client->post(
-            { groupId => $groupId },
+        $self->client->exit(
+            $groupId,
             sub {
-                my ($body, $hdr) = @_;
+                my $json = shift;
+                return if $self->count_groups != ++$exit;
 
-                print $body if $ENV{DEBUG};
-                $self->httpd->stop unless $count;
+                $self->httpd->stop;
             }
         );
     }
@@ -188,3 +168,20 @@ sub close {
 __PACKAGE__->meta->make_immutable;
 
 1;
+
+=pod
+
+=head1 SYNOPSIS
+
+    # you might be never use this module directly
+    $ hubot -a mypeople
+
+=head1 DESCRIPTION
+
+you should register your own bot via L<http://dna.daum.net/myapi/authapi/mypeople/new>.
+
+=head1 SEE ALSO
+
+http://dna.daum.net/myapi/authapi/mypeople/new
+
+=cut
