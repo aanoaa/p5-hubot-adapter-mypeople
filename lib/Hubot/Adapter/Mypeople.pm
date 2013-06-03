@@ -168,3 +168,20 @@ sub close {
 __PACKAGE__->meta->make_immutable;
 
 1;
+
+=pod
+
+=head1 SYNOPSIS
+
+    # you might be never use this module directly
+    $ hubot -a mypeople
+
+=head1 DESCRIPTION
+
+you should register your own bot via L<http://dna.daum.net/myapi/authapi/mypeople/new>.
+
+=head1 SEE ALSO
+
+http://dna.daum.net/myapi/authapi/mypeople/new
+
+=cut
