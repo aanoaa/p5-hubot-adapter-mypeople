@@ -35,6 +35,12 @@ has groups => (
     }
 );
 
+has exit => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => 0,
+);
+
 sub _build_httpd  { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
 
 sub send {
@@ -43,7 +49,7 @@ sub send {
     $self->client->send(
         $user->{room},
         join("\n", @strings),
-        undef
+        sub { $self->httpd->stop if $self->exit }
     );
 }
 
@@ -151,6 +157,8 @@ sub respond {
 
 sub close {
     my $self = shift;
+
+    return $self->exit(1) unless $self->count_groups;
 
     my $exit = 0;
     for my $groupId ($self->all_groups) {
