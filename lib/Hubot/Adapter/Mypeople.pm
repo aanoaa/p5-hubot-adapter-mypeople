@@ -5,7 +5,7 @@ use namespace::autoclean;
 extends 'Hubot::Adapter';
 
 use AnyEvent::HTTPD;
-use AnyEvent::Mypeople::Client;
+use AnyEvent::MyPeopleBot::Client;
 use JSON::XS;
 use Encode 'decode_utf8';
 
@@ -18,7 +18,7 @@ has httpd => (
 
 has client => (
     is         => 'rw',
-    isa        => 'AnyEvent::Mypeople::Client',
+    isa        => 'AnyEvent::MyPeopleBot::Client',
     lazy_build => 1,
 );
 
@@ -35,6 +35,12 @@ has groups => (
     }
 );
 
+has exit => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => 0,
+);
+
 sub _build_httpd  { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
 
 sub send {
@@ -43,7 +49,7 @@ sub send {
     $self->client->send(
         $user->{room},
         join("\n", @strings),
-        undef
+        sub { $self->httpd->stop if $self->exit }
     );
 }
 
@@ -62,7 +68,7 @@ sub run {
         exit;
     }
 
-    $self->client(AnyEvent::Mypeople::Client->new(apikey => $ENV{HUBOT_MYPEOPLE_APIKEY}));
+    $self->client(AnyEvent::MyPeopleBot::Client->new(apikey => $ENV{HUBOT_MYPEOPLE_APIKEY}));
 
     my $httpd = $self->httpd;
 
@@ -151,6 +157,8 @@ sub respond {
 
 sub close {
     my $self = shift;
+
+    return $self->exit(1) unless $self->count_groups;
 
     my $exit = 0;
     for my $groupId ($self->all_groups) {

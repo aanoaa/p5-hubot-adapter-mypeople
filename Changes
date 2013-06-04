@@ -1,5 +1,12 @@
 go to https://github.com/aanoaa/hubot-adapter-mypeople/issues for the roadmap and known issues.
 
+v0.0.4    Tue Jun  4 19:23:53 2013 KST
+    - better pod doc
+    - use `AnyEvent::MyPeopleBot::Client` instead of `AnyEvent::Mypeople::Client`
+      cause renamed
+    - fix bug when got a `die` command
+    - improve README
+
 v0.0.3    Mon Jun  3 19:02:28 2013 KST
     - fix unicode encoding
 
