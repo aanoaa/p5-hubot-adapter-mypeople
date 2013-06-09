@@ -1,6 +1,6 @@
 # hubot-adapter-mypeople #
 
-![preview](https://pbs.twimg.com/media/BLhHYKaCUAAacSm.png)
+![preview](https://pbs.twimg.com/media/BLhHYKaCUAAacSm.png:small)
 
 Interface to the
 [mypeople](https://mypeople.daum.net/mypeople/web/main.do) service for
