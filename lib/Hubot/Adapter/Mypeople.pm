@@ -75,7 +75,7 @@ sub run {
     my $httpd = $self->robot->httpd;
 
     $httpd->reg_cb(
-        '/' => sub {
+        $ENV{HUBOT_MYPEOPLE_CALLBACK_PATH} || '/' => sub {
             my ( $httpd, $req ) = @_;
 
             my $action  = $req->parm('action');
@@ -185,6 +185,18 @@ __PACKAGE__->meta->make_immutable;
 =head1 DESCRIPTION
 
 you should register your own bot via L<http://dna.daum.net/myapi/authapi/mypeople/new>.
+
+=head1 CONFIGURATION
+
+=over
+
+=item * HUBOT_MYPEOPLE_APIKEY
+
+=item * HUBOT_MYPEOPLE_CALLBACK_PATH
+
+'/' is default to use.
+
+=back
 
 =head1 SEE ALSO
 

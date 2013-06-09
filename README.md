@@ -13,5 +13,5 @@ Interface to the
 ## Run ##
 
     $ export HUBOT_MYPEOPLE_APIKEY='YOUR API KEY HERE'
-    $ export HUBOT_MYPEOPLE_PORT='80'    # default 8080
+    $ export HUBOT_MYPEOPLE_CALLBACK_PATH='/hubot/callback'    # default /
     $ hubot -a mypeople
