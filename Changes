@@ -1,5 +1,8 @@
 go to https://github.com/aanoaa/hubot-adapter-mypeople/issues for the roadmap and known issues.
 
+v0.0.5    Mon Jun 10 03:02:22 2013 KST
+    - reuse httpd then prevent duplicated port listen
+
 v0.0.4    Tue Jun  4 19:23:53 2013 KST
     - better pod doc
     - use `AnyEvent::MyPeopleBot::Client` instead of `AnyEvent::Mypeople::Client`
