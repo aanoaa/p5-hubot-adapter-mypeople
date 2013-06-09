@@ -4,7 +4,6 @@ use namespace::autoclean;
 
 extends 'Hubot::Adapter';
 
-use AnyEvent::HTTPD;
 use AnyEvent::MyPeopleBot::Client;
 use JSON::XS;
 use Encode 'decode_utf8';
@@ -41,14 +40,12 @@ has exit => (
     default => 0,
 );
 
-sub _build_httpd  { AnyEvent::HTTPD->new(port => $ENV{HUBOT_MYPEOPLE_PORT} || 8080) }
-
 sub send {
     my ( $self, $user, @strings ) = @_;
 
     $self->client->send(
         $user->{room},
-        join("\n", @strings),
+        join( "\n", @strings ),
         sub { $self->httpd->stop if $self->exit }
     );
 }
@@ -63,32 +60,38 @@ sub reply {
 sub run {
     my $self = shift;
 
-    unless ($ENV{HUBOT_MYPEOPLE_APIKEY}) {
-        print STDERR "HUBOT_MYPEOPLE_APIKEY is not defined, try: export HUBOT_MYPEOPLE_APIKEY='yourapikey'";
+    unless ( $ENV{HUBOT_MYPEOPLE_APIKEY} ) {
+        print STDERR
+            "HUBOT_MYPEOPLE_APIKEY is not defined, try: export HUBOT_MYPEOPLE_APIKEY='yourapikey'";
         exit;
     }
 
-    $self->client(AnyEvent::MyPeopleBot::Client->new(apikey => $ENV{HUBOT_MYPEOPLE_APIKEY}));
+    $self->client(
+        AnyEvent::MyPeopleBot::Client->new(
+            apikey => $ENV{HUBOT_MYPEOPLE_APIKEY}
+        )
+    );
 
-    my $httpd = $self->httpd;
+    my $httpd = $self->robot->httpd;
 
     $httpd->reg_cb(
         '/' => sub {
-            my ($httpd, $req) = @_;
+            my ( $httpd, $req ) = @_;
 
             my $action  = $req->parm('action');
             my $buddyId = $req->parm('buddyId');
             my $groupId = $req->parm('groupId');
-            my $content = decode_utf8($req->parm('content'));
+            my $content = decode_utf8( $req->parm('content') );
 
-            $req->respond({ content => ['text/plain', 'Your request is succeed'] });
+            $req->respond(
+                { content => [ 'text/plain', 'Your request is succeed' ] } );
 
-            $self->add_group($groupId) if $groupId && !$self->find_group(sub {/^$groupId$/});
+            $self->add_group($groupId)
+                if $groupId && !$self->find_group( sub {/^$groupId$/} );
 
-            if ($action =~ /^sendFrom/) {
+            if ( $action =~ /^sendFrom/ ) {
                 $self->respond(
-                    $buddyId,
-                    $groupId,
+                    $buddyId, $groupId,
                     sub {
                         my $user = shift;
 
@@ -100,32 +103,26 @@ sub run {
                         );
                     }
                 );
-            } elsif ($action =~ /^(createGroup|inviteToGroup)$/) {
+            }
+            elsif ( $action =~ /^(createGroup|inviteToGroup)$/ ) {
                 $self->respond(
-                    $buddyId,
-                    $groupId,
+                    $buddyId, $groupId,
                     sub {
                         my $user = shift;
 
                         $self->receive(
-                            Hubot::EnterMessage->new(
-                                user => $user
-                            )
-                        );
+                            Hubot::EnterMessage->new( user => $user ) );
                     }
                 );
-            } elsif ($action eq 'exitFromGroup') {
+            }
+            elsif ( $action eq 'exitFromGroup' ) {
                 $self->respond(
-                    $buddyId,
-                    $groupId,
+                    $buddyId, $groupId,
                     sub {
                         my $user = shift;
 
                         $self->receive(
-                            Hubot::LeaveMessage->new(
-                                user => $user
-                            )
-                        );
+                            Hubot::LeaveMessage->new( user => $user ) );
                     }
                 );
             }
@@ -142,7 +139,7 @@ sub run {
 sub respond {
     my ( $self, $buddyId, $groupId, $cb ) = @_;
 
-    my $user = $self->userForId($buddyId, {room => $groupId || $buddyId });
+    my $user = $self->userForId( $buddyId, { room => $groupId || $buddyId } );
     return $cb->($user) if $user->{id} ne $user->{name};
 
     $self->client->profile(
@@ -161,7 +158,7 @@ sub close {
     return $self->exit(1) unless $self->count_groups;
 
     my $exit = 0;
-    for my $groupId ($self->all_groups) {
+    for my $groupId ( $self->all_groups ) {
         $self->client->exit(
             $groupId,
             sub {
